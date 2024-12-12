@@ -1,0 +1,487 @@
+---
+title: "Problem Set #10"
+author: "Shuhan (Alice) Ai"
+date: "12/11/2023"
+urlcolor: blue
+output: 
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", highlight = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+# Overview
+
+In this problem set, you will be working with multiple datasets and will practice joining them to conduct meaningful analyses. First, we will conduct preliminary investigations of the dataframes we are working with. Then, we will carry out some data manipulations prior to joining (merging) our dataframes. Next, we will practice joining dataframes and diagnosing problems with our joins (merges). Lastly, we will perform exploratory data analyses to investigate the characteristics (e.g., school, community) associated with receiving or not receiving a visit from the university. 
+
+The datasets you will be working with are:
+
+- `pubhs_events`
+  - Contains data on the off-campus recruiting events to public high schools by a sample of public research universities
+  - Each observation is a visit by the university to the high school. The variable `num_events` counts the number of visits that the high school received from that university.
+- `zip_data`
+  - Contains Census data from the [American Community Survey](https://www.census.gov/programs-surveys/acs/about.html) on characteristics of each zip code
+  - Each observation is a zip code
+- `ccd_data`
+  - Contains data on characteristics of U.S. public schools from the [Common Core of Data (CCD)](https://nces.ed.gov/ccd/aboutccd.asp)
+  - Each observation is a public school. The variable `ncessch` uniquely identifies each school.
+
+
+## Part I: Load libraries and datasets  
+
+
+1. Load the `tidyverse` and `labelled` libraries in the code chunk below.
+
+```{r, message=F}
+rm(list = ls())
+library(tidyverse)
+library(labelled)
+```
+
+
+2. Load the 3 dataframes from the URL: `https://github.com/anyone-can-cook/rclass1/raw/master/data/recruiting/recruiting_datasets.RData`
+    
+    - Hint: Use `load()` and `url()`
+
+```{r}
+load(url("https://github.com/anyone-can-cook/rclass1/raw/master/data/recruiting/recruiting_datasets.RData"))
+```
+
+
+3. Conduct some preliminary investigations of the 3 dataframes to become acquainted with them.
+
+    - E.g., Use `attributes()` to check the labels of a variable, print some observations, check values for a variable etc.
+    - Note: In completing subsequent steps of the problem set, you may find it helpful to conduct additional investigations of the data
+    
+```{r, results='hide'}
+#glimpse dataset
+glimpse(pubhs_events)
+glimpse(zip_data)
+glimpse(ccd_data)
+
+#check variable names
+names(pubhs_events)
+names(zip_data)
+names(ccd_data)
+
+#check variable label
+pubhs_events %>% var_label()
+zip_data %>% var_label()
+ccd_data %>% var_label()
+
+#summary statistics for numeric variables
+summary(pubhs_events$num_events)
+summary(zip_data)
+summary(ccd_data) #there is -9, should be missing value
+```
+
+
+4. Identify the primary key for each dataset. In other words, which variable(s) uniquely identify the observations in each dataset? Show your work in the code chunk below.
+
+```{r}
+#univ_id and school_id make up the primary key in the pubhs_events table
+pubhs_events %>% group_by(univ_id, school_id) %>% #group by primary key
+  summarise(n_per_key = n()) %>% #create a measure of number of observations per group
+  ungroup() %>% #ungroup
+  count(n_per_key) #freqyency of number of observations per group
+
+#zip_cod is the primary key in the zip_data table
+zip_data %>% group_by(zip_code) %>%
+  summarise(n_per_zip = n()) %>%
+  ungroup() %>%
+  count(n_per_zip)
+
+#ncessch is the primary key in the ccd_data
+ccd_data %>% group_by(ncessch) %>%
+  summarise(n_per_sch = n()) %>%
+  ungroup() %>%
+  count(n_per_sch)
+```
+
+
+## Part II: Define universe of public high schools
+
+
+1. Create an object based on `ccd_data` called `ccd_hs` that only contains observations for high schools that meet all of the following (admittedly arbitrary) criteria:
+
+    - Located in the 50 U.S. states or District of Columbia (`lstate`) [Hint: `lstate` is not a U.S. territory: `"AS", "AE", "AP", "PR", "GU", "VI"`]
+    - Is a regular school or vocational school (`sch_type`) [Hint: use the attributes function to check the value labels attributes(ccd_data$sch_type)] 
+    - Updated status is open, new, or reopened (`updated_status`) 
+    - Is not a virtual school (`virtual`)
+    - Grade 12 is offered (`g12offered`)
+    - Enrolls at least 10 students in the 12th grade (`g12`)
+
+```{r}
+#check the variable attributes
+unique(ccd_data$lstate)
+attributes(ccd_data$sch_type) #regular school is 1, vocational school is 3
+attributes(ccd_data$updated_status) # open is 1, new is 3, reopened is 8
+attributes(ccd_data$virtual) #value is Yes/No, char
+attributes(ccd_data$g12offered) #value is Yes/No, char
+
+# Filter observations based on criteria
+ccd_hs <- ccd_data %>%
+  filter(
+    lstate %in% c("AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", 
+                   "GA", "HI", "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", 
+                   "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND", "NE", 
+                   "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "RI", 
+                   "SC", "SD", "TN", "TX", "UT", "VA", "VT", "WA", "WI", "WV", "WY") &
+    sch_type %in% c(1,3) & #regular school or vocational school
+    updated_status %in% c(1, 3, 8) & #open, new, or reopened
+    virtual == "No" & # not a virtual school 
+    g12offered == "Yes" & #grade 12 is offered
+    g12 >= 10
+  )
+
+#check the data
+#glimpse(ccd_hs)
+unique(ccd_hs$lstate)
+
+
+#check for Yolanda
+ccd_hs2 <- ccd_data %>%
+  filter(
+    !(lstate %in% c("AS", "AE", "AP", "PR", "GU", "VI")),
+    sch_type %in% c(1, 3), 
+    updated_status %in% c(1, 3, 8),  
+    virtual == "No",
+    g12offered == "Yes",
+    g12 >= 10
+  )
+
+```
+
+
+2. Now, join the `ccd_hs` dataframe with `zip_data` so that each public high school (ie. row) in `ccd_hs` is matched with its corresponding zip code level data. Assign the resulting object the name `ccd_hs_zip`.
+
+    - Note: Think about what kind of join you want to perform. Remember that we want to keep all public high schools in `ccd_hs` and add zip code level data from `zip_data` if available.
+
+```{r}
+#check the varibale name in each dataset
+names(ccd_hs)
+names(zip_data)
+
+#left join for the two dataset based on the zipcode
+ccd_hs_zip <- left_join(ccd_hs, zip_data, by = c("lzip" = "zip_code"))
+#check the merged variables in the new dataframe
+names(ccd_hs_zip)
+
+#check each row represent one public high school
+ccd_hs_zip %>% group_by(sch_name) %>% count() %>% head()
+ccd_hs_zip %>% group_by(sch_name, lzip) %>% 
+  summarise(n_per_schoolzip = n()) %>%
+  ungroup() %>%
+  count(n_per_schoolzip)
+```
+
+
+3. Perform an anti join to investigate which high schools did not match with any zip code data. Assign the resulting object the name `anti_ccd_hs_zip`. Take a look at the `lzip` variable in `anti_ccd_hs_zip` - what do you notice about the zip codes that were not matched?
+
+     - Hint: Zip codes should be 5-digits long. Look up the addresses of the high schools to see why some are not.  
+     
+     - __ANSWER__: The majority of zipcode without the pairing is only four digits long, I think the 0 at the very beginning of the zipcode was left out.
+
+```{r}
+anti_ccd_hs_zip <- anti_join(ccd_hs, zip_data, by = c("lzip" = "zip_code"))
+
+#glimpse(anti_ccd_hs_zip)
+
+#unique(anti_ccd_hs_zip$lzip)
+#unique(zip_data$zip_code)
+```
+
+
+4. Fix the `lzip` variable based on your observations in the previous step.
+
+    - Hint: You can use `str_pad()` to help add back the missing leading 0's from the zip codes. Look at the help file to guide you `?str_pad()`
+    
+```{r}
+?str_pad
+ccd_hs$lzip <- str_pad(ccd_hs$lzip, width = 5, side = "left", pad = "0")
+```
+
+
+5. Copy your code from steps 2 and 3 into the code chunk below and run them again. You should notice that `anti_ccd_hs_zip` will have much fewer mismatches!
+
+```{r}
+#left join for the two dataset based on the zipcode
+ccd_hs_zip <- left_join(ccd_hs, zip_data, by = c("lzip" = "zip_code"))
+#check the merged variables in the new dataframe
+names(ccd_hs_zip)
+
+#check each row represent one public high school
+ccd_hs_zip %>% group_by(sch_name) %>% count() %>% head()
+ccd_hs_zip %>% group_by(sch_name, lzip) %>% 
+  summarise(n_per_schoolzip = n()) %>%
+  ungroup() %>%
+  count(n_per_schoolzip)
+
+#create anti_ccd_hs_zip2
+anti_ccd_hs_zip2 <- anti_join(ccd_hs, zip_data, by = c("lzip" = "zip_code"))
+
+#check the number of mismatches
+nrow(anti_ccd_hs_zip)
+nrow(anti_ccd_hs_zip2)
+
+```
+
+## Part III: Create analysis dataset for one university
+
+
+1. Looking at `pubhs_events`, choose 1 university that you want to conduct analysis on. Filter `pubhs_events` for only events by that university and save the resulting dataframe in an object called `events_nameofinstitution` (e.g., `events_ucberkeley` or `events_carolina`)
+
+```{r}
+unique(pubhs_events$univ_name)
+
+#choose "University of California-Berkeley"   
+events_ucberkeley <- pubhs_events %>%
+  filter(univ_name == "University of California-Berkeley")
+
+head(events_ucberkeley)
+nrow(events_ucberkeley)
+```
+
+
+2. Your `events_nameofinstitution` should contain one row for each public high school that your university of choice visited. Confirm that `school_id` alone can now uniquely identify all observations in `events_nameofinstitution`.
+
+```{r}
+events_ucberkeley %>%
+  group_by(school_id) %>%
+  summarise(n_per_school = n()) %>%
+  ungroup() %>%
+  count(n_per_school)
+```
+
+
+3. Now, join `events_nameofinstitution` (public HS that your university of choice visited) with `ccd_hs_zip` (universe of all public HS that fit our previously defined criteria) and assign it the name `ccd_hs_zip_events`. We want `ccd_hs_zip_events` to contain all public high schools found in `ccd_hs_zip`, where each row is merged with a row in `events_nameofinstitution` if that high school was visited by your university of choice.
+
+    - Note: Think about what kind of join you want to perform. 
+    
+```{r}
+ccd_hs_zip_events <- left_join(ccd_hs_zip, events_ucberkeley,
+                               by = c("ncessch" = "school_id"))
+```
+
+
+4. Perform a semi join and an anti join to find out which rows in `ccd_hs_zip` have a match in `events_nameofinstitution` and which did not. Save the objects as `semi_ccd_hs_zip_events` and `anti_ccd_hs_zip_events`. What can you say about the high schools that each object contain (in terms of whether or not they received a visit from your university of choice)?
+
+    - __ANSWER__: 
+    - `semi_ccd_hs_zip_events`: This dataset contains the public high schools that received a visit from the University of California-Berkeley. It represents the result of a semi join, which includes only the rows in `ccd_hs_zip` that have a match in `events_ucberkeley`.
+    - `anti_ccd_hs_zip_events`: This dataset contains the public high schools that did not receive a visit from the University of California-Berkeley. It represents the result of an anti join, which includes only the rows in `ccd_hs_zip` that do not have match in `events_ucberkeley`.
+
+```{r}
+semi_ccd_hs_zip_events <- semi_join(ccd_hs_zip, events_ucberkeley,
+                                    by = c("ncessch" = "school_id"))
+
+anti_ccd_hs_zip_events <- anti_join(ccd_hs_zip, events_ucberkeley,
+                                    by = c("ncessch" = "school_id"))
+
+nrow(semi_ccd_hs_zip_events)
+nrow(anti_ccd_hs_zip_events)
+```
+
+
+5. Going back to the `ccd_hs_zip_events` dataframe you created in step 3, add a new column to the dataframe called `num_visits` that identifies the number of visits each high school received from your university of choice. The value should be `0` if the high school did not receive a visit. Use `count()` to get the frequency table for the values of `num_visits`.
+
+```{r}
+# Adding a new column 'num_visits' to the ccd_hs_zip_events dataframe
+ccd_hs_zip_events <- ccd_hs_zip_events %>%
+  mutate(num_visits = ifelse(is.na(num_events), 0, num_events))
+
+# Creating a frequency table for the values of 'num_visits'
+visit_frequency <- ccd_hs_zip_events %>%
+  count(num_visits)
+
+# Displaying the frequency table
+print(visit_frequency)
+  
+```
+
+
+6. Based on the variable `num_visits` you just created, add a 0/1 variable `got_visit` to `ccd_hs_zip_events` that equals `1` if the high school got at least one visit from your university of choice and equals `0` if the high school did not receive any visits. Use `count()` to get the frequency table for the values of `got_visit`. (It should be consistent with the number of rows you saw in `semi_ccd_hs_zip_events` and `anti_ccd_hs_zip_events`)
+
+```{r}
+# Adding the 'got_visit' column to the ccd_hs_zip_events dataframe
+ccd_hs_zip_events <- ccd_hs_zip_events %>%
+  mutate(got_visit = ifelse(num_visits > 0, 1, 0))
+
+# Creating a frequency table for the values of 'got_visit'
+visit_status_frequency <- ccd_hs_zip_events %>%
+  count(got_visit)
+
+# Displaying the frequency table
+print(visit_status_frequency)
+
+nrow(semi_ccd_hs_zip_events)
+nrow(anti_ccd_hs_zip_events)
+```
+
+## Part IV: Conduct analysis comparing visited and nonvisited high schools
+
+
+1. Perform exploratory data analysis on variables you find interesting, with the general focus of identifying characteristics associated with getting visit(s) versus not getting visit(s).
+
+```{r}
+#load packages
+library(ggplot2)
+
+#explore the variable names 
+ccd_hs_zip_events %>% names() %>%
+  grep("^pop_", ., value = TRUE)
+
+#What I want to do next: (1) compare among race-related population (2) compare among education attainment
+##################################################################
+#(1)compare among race-related population
+#names(ccd_hs_zip_events)
+
+#reshaping data to long format and then get the mean value by race
+explore_data_race <- ccd_hs_zip_events %>%
+  select(pop_white, pop_black, pop_hispanic, pop_asian, got_visit) %>%
+  pivot_longer(cols = -got_visit, names_to = "population_type",
+               values_to = "population_value") %>%
+  group_by(got_visit, population_type) %>%
+  summarise(mean_population = mean(population_value, na.rm = TRUE))
+
+#create the bar plot
+ggplot(explore_data_race, aes(x= population_type, y = mean_population, fill = factor(got_visit))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "Mean Race Population by Visit Status",
+       x = "Population Type",
+       y = "Mean Population Value",
+       fill = "Got Visit or Not by UCB") +
+  theme_minimal()
+```
+```{r}
+#(2) compare among education attainment variables 
+ccd_hs_zip_events %>% names() %>%
+  grep("^pop_edu_", ., value = TRUE)
+
+#reshaping data to long format and get the mean value by education attainment
+explore_data_edu <- ccd_hs_zip_events %>%
+  select(pop_edu_attain_doct, pop_edu_attain_prof, pop_edu_attain_master, pop_edu_attain_bach, pop_edu_attain_assoc, pop_edu_GED, pop_edu_hs, got_visit) %>%
+  pivot_longer(cols = -got_visit, names_to = "eduattain_type", 
+               values_to = "eduattain_number") %>%
+  group_by(got_visit, eduattain_type) %>%
+  summarise(mean_eduattain = mean(eduattain_number, na.rm = TRUE)) %>%
+  mutate(mean_eduattain = as.integer(mean_eduattain),
+         eduattain_type = str_replace(eduattain_type, "pop_edu_attain_", ""),
+         eduattain_type = str_replace(eduattain_type, "pop_edu_", "")
+         )
+
+#create the bar plot
+ggplot(explore_data_edu, aes(x = factor(eduattain_type,
+               levels = c("doct", "prof", "master", "bach", "assoc", "GED", "hs")), 
+                             y = mean_eduattain, 
+                             fill = factor(got_visit))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "Mean Education Attainment Number by Visit Status",
+       x = "Education Attainment Type",
+       y = "Mean Education Attainment Number",
+       fill = "Got Visit or Not by UCB") +
+  theme_minimal()
+```
+
+**[_Example_]** One analysis you can conduct is compare the high school race composition between visited and nonvisited schools.  
+
+- You may want to delete the `eval=FALSE` from the code chunk option below and run the code.
+
+```{r, eval=FALSE}
+df <- ccd_hs_zip_events %>%
+  select(got_visit, white_stu, black_stu, latinx_stu, asian_stu, native_am_stu, native_hi_pi_stu, two_or_more_stu) %>% 
+  mutate(got_visit = if_else(got_visit == 1, "Visited", "Nonvisited")) %>% 
+  pivot_longer(cols = -got_visit,
+               names_pattern = '(.+)_stu',  # removes _stu suffix
+               names_to = 'race',
+               values_to = 'num') %>% 
+  group_by(got_visit, race) %>% 
+  summarise(cnt = sum(num)) %>% 
+  mutate(pct = cnt / sum(cnt))
+
+ggplot(df, aes(fill = got_visit, y = pct, x = race)) + 
+    geom_bar(position="dodge", stat="identity") +
+    scale_y_continuous(labels = scales::percent, expand = c(0, 0, 0.05, 0))
+```
+
+# Part V: Bonus (up to 10% extra credit)
+
+Create a graph using data that you used in this problem set. Make sure to title and label the plot appropriately and customize it how you'd like. Add a color palette from `Rcolorbrewer` or curate your own color palette. Then, write some text describing your findings or observations.
+
+**Note:** The teaching team will not answer questions related to the bonus question. Instead, feel free to ask your classmates on GitHub (make sure to include the "bonus" label in your issue). 
+
+```{r}
+#load package
+library(maps)
+attributes(ccd_hs$frelch)
+
+#What I want to do is to create a US map showing the average number of free lunch eligible student by state
+
+#Step 1: prepare the data
+state_avg_frelch <- ccd_hs %>%
+  group_by(lstate) %>%
+  summarise(avg_frelch = mean(frelch, na.rm = TRUE)) %>%
+  ungroup()
+
+#Step 2: create a lookup table for state names
+state_lookup <- data.frame(abbreviation = state.abb, name = tolower(state.name))
+
+# updating the state names in state_avg_frelch
+state_avg_frelch <- state_avg_frelch %>%
+  left_join(state_lookup, by = c("lstate" = "abbreviation")) %>%
+  mutate(lstate = name) %>%
+  select(-name)
+
+#Step 3: get the map data and merge
+us_state_map <- map_data("state")
+map_df <- merge(us_state_map, state_avg_frelch, by.x = "region", by.y = "lstate", all.x = TRUE)
+
+#Step 4: create the map
+# creating the map
+ggplot(map_df, aes(map_id = region, fill = avg_frelch)) +
+  geom_map(map = us_state_map) +
+  expand_limits(x = us_state_map$long, y = us_state_map$lat) +
+  scale_fill_viridis_c(option = "C", direction = -1, na.value = "#1b9e77") +
+  labs(title = "Average Number of Free Lunch Eligible Students by State",
+       fill = "Average Free Lunch Eligible Students") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+#Step 5: identify the top states
+# ientifying the top states based on average frelch
+top_states <- state_avg_frelch %>%
+  arrange(desc(avg_frelch)) %>%
+  top_n(5, avg_frelch)
+
+# viewing the top states
+print(top_states) #Florida, Georgia, California, Nevada, South Carolina
+
+```
+- Findings or Observations: The choropleth map of the United States, highlighting the average number of students eligible for free lunch in each state, reveals significant geographic variability. States with higher averages might indicate regions with larger student populations in need.The top five states with the highest average number of free lunch eligible students are Florida, Georgia, California, Nevada, and South Carolina. 
+
+# Part VI: Create a GitHub issue   
+
+- Go to the [class repository](https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues) and create a new issue.
+
+- Refer to [rclass1 student issues readme](https://github.com/anyone-can-cook/rclass1_student_issues_f23/blob/main/README.md) for instructions on how to post questions or reflections.
+
+- You are also required to respond to at least one issue posted by another student.
+
+- Paste the url to your issue here: https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/1051
+- Paste the url to the issue you responded to here:  https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/1057
+
+# Knit to pdf and submit problem set  
+
+**Knit to pdf** by clicking the "Knit" button near the top of your RStudio window (icon with blue yarn ball) or drop down and select "Knit to PDF"
+
+- Go to the [class website](https://anyone-can-cook.github.io/rclass1/) and under the "Readings & Assignments" >> "Finals Week" tab, click on the "Problem set 10 submission link"
+- Submit both .Rmd and pdf files
+- Use this naming convention "lastname_firstname_ps#" for your .Rmd and pdf files (e.g. jaquette_ozan_ps10.Rmd & jaquette_ozan_ps10.pdf) 
+

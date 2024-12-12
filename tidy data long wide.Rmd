@@ -1,0 +1,345 @@
+---
+title: "Problem Set #9"
+author: "Shuhan (Alice) Ai"
+date: "12/01/2023"
+urlcolor: blue
+output: 
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", highlight = TRUE)
+```
+
+
+
+## Overview
+
+This problem set has three parts. 
+
+1. We will ask you some definitional/conceptual questions about the concepts introduced in lecture
+1. Tidying untidy data: reshaping from long to wide
+    - E.g., dataset has one row for each combination of university ID and enrollment age group, but you want a dataset with one row per university ID and one enrollment variable for each age group
+    - For these questions we'll use fall enrollment data from the Integrated Postsecondary Data System (IPEDS), specifically the fall enrollment sub-survey that focuses on enrollment by age group
+1. Tidying untidy data: reshaping from wide to long
+    - For these questions we'll use data from the NCES Digest of Education Statistics that contains data about the total number of teachers in each state
+
+
+# Load library and data
+
+```{r results="hide", message=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(haven)
+library(labelled)
+```
+
+Note: _If you do not have the_ `pivot_wider()` _and_ `pivot_longer()` _functions, you may need to update your_ `tidyr` _package using_ `install.packages('tidyr')`.
+    
+# Question 1: Conceptual questions
+
+
+1. In your own words, what does "unit of analysis" [our term; not necessarily used outside this class] mean?  
+
+    - YOUR ANSWER HERE: The "unit of analysis" refers to what each row signifies in a dataset, with a focus on the physical arrangement of the dataset. For example, if each row signifies a student, the data is at the student level. If each row represents an organization-year combination, the data is at the organization-year level.
+ 
+
+2. What are the three rules of tidy data?  
+
+    - YOUR ANSWER HERE: (1) Each variable must have its own column: In tidy data, each variable (a characteristic or attribute being measeured or observed) should be represented by its own column. This ensures that the dataset is organized in a way that is clear and logical. (2) Each observation must have its own row: Every row in the dataset should coorespond to a distinct oberservation or record. This rule ensures that individual entities or cases are effectively represented, making it easier to analyze and interpret the data. (3) Each cell in the dataset should contain a single data value. This rule emphasize the simplicity and clarity of data organization. It enables straightforward operations and analyses, as each piece of informaiton is isolated within its own cell.
+
+
+# Question 2: Questions about reshaping long to wide
+
+## Description of the data
+
+For these questions, we'll be using data from the Fall Enrollment survey component of the Integrated Postsecondary Education Data System (IPEDS)
+
+- Specifically, we'll be using data from the survey sub-component that focuses on enrollment by age-group
+- The dataset we'll be using is from Fall 2016 (i.e., Fall of the 2016-17 academic year)
+- Here is a link to the data dictionary (an excel file) for the enrollment by age dataset: [LINK](https://nces.ed.gov/ipeds/datacenter/data/EF2016B_Dict.zip)
+- In the dataset you load below:
+    - I've dropped a few of the variables from the raw enrollment by age data
+    - I've added a few variables from the "institutional characteristics" survey (e.g., institution name, state, sector) that should be pretty self explanatory if you examine the variable labels and/or value labels
+- The variable `unitid` is the ID variable for each college/university
+- The dataset has one observation for each combination of the variables `unitid`-`efbage`-`lstudy`
+
+
+## Overview of the tasks
+
+- Load the dataframe and assign it the name `age_f16_allvars_allobs` [done for you]
+- Create a new dataframe called `agegroup1_obs` based on `age_f16_allvars_allobs` [done for you]
+    - `agegroup1_obs` will have fewer variables than `age_f16_allvars_allobs` and contains only observations where age-group equals `1` (1. All age categories total)
+- Tasks related to reshaping `agegroup1_obs` from long to wide [you will do]
+
+
+## Load data and create `agegroup1_obs`
+
+- Load IPEDS data that contains fall enrollment by age.
+
+NOTE: IN THIS QUESTION, WE GIVE YOU THE ANSWERS; ALL YOU HAVE TO DO IS RUN THE BELOW CODE CHUNK
+```{r, results='hide'}
+# Read Stata data into R using read_data() function from haven package
+age_f16_allvars_allobs <- read_dta(file="https://github.com/anyone-can-cook/rclass1/raw/master/data/ipeds/ef/age/ef_age_ic_fall_2016.dta", encoding=NULL)
+
+# Rename a couple variables
+age_f16_allvars_allobs <- age_f16_allvars_allobs %>% rename(agegroup=efbage, levstudy=lstudy)
+
+# List variables and variable labels
+names(age_f16_allvars_allobs)
+age_f16_allvars_allobs %>% var_label()
+```
+
+- Create new dataframe based on `age_f16_allvars_allobs`.
+
+NOTE: IN THIS QUESTION, WE GIVE YOU THE ANSWERS; ALL YOU HAVE TO DO IS RUN THE BELOW CODE CHUNK
+```{r, results='hide'}
+# Create dataframe that keeps observations where age-group equals `1` (1. All age categories total)
+agegroup1_obs <- age_f16_allvars_allobs %>%   
+  select(fullname,unitid,agegroup,levstudy,efage09,stabbr,locale,sector) %>% # subset the dataframe and only keep certain columns
+  filter(agegroup==1) %>% # filter for obs where age-group == 1
+  select(-agegroup)
+
+glimpse(agegroup1_obs)
+```
+
+## Tasks related to reshaping `agegroup1_obs` from long to wide
+
+
+1. Run whatever investigations seem helpful for you to get to know the data (e.g., list variable names, list variable labels, list variable values, tabulations).
+
+```{r, results='hide'}
+#list variable names
+names(agegroup1_obs)
+#liar variable labels
+agegroup1_obs %>% var_label()
+#display unique values for certain variables
+agegroup1_obs %>% distinct(fullname, stabbr, locale, sector)
+#tabulate the value of levstudy
+table(agegroup1_obs$levstudy)
+```
+
+
+2. Confirm that there is one row per each combination of `unitid`-`levstudy`.
+
+```{r}
+agegroup1_obs %>%
+  group_by(unitid, levstudy) %>% #group by unitid and levstudy
+  summarise(n_per_group =n()) %>% #create measure of number of obs per group
+  ungroup %>% #separate frequency table for each value of id
+  count(n_per_group) # frequency of number of observations per group
+```
+
+
+3. Using your code from the previous question as a guide, confirm that the object `agegroup1_obs` has more than one observation for each value of `unitid`.
+
+```{r}
+agegroup1_obs %>%
+  group_by(unitid) %>%
+  summarise(n_per_unitid = n()) %>%
+  ungroup %>%
+  count(n_per_unitid)
+```
+
+
+4. Diagnose whether the dataframe `agegroup1_obs` meets each of the three criteria for tidy data.
+
+    - YOUR ANSWER HERE: (1) Dose each variable have its own column? No. Level of student - "1-All Students total", "2-Undergraduate", "5-Graduate" should be three different variables beacause they are different attributes. (2) Does each observation have its own row? No. There is one observation for each `unitid` - `levstudy`, but the values of `levstudy` (1, 2, 5) represent attributes of a unit, which should be represented by distinct variables rather than rows. (3) Does each value have its own cell? Yes.
+
+
+5. What changes need to be made to `agegroup1_obs` to make it tidy?
+
+    - YOUR ANSWER HERE: Change the structure of the dataframe so that each row corresponds to a unique combination of `unitid` and `levstudy`. Currently, one observation was scattered across multiple rows (e.g., Amridge University - 100690 have three level of students: All students total, undergraduate, and graduate), and they should be consolidated into a single row to represent a unique observation (or higher education institution).
+
+
+6. With respect to "reshaping long to wide" to tidy a dataset, define the `names_from` parameter. What should the `names_from` column be in the dataframe `agegroup1_obs`?
+
+    - YOUR ANSWER HERE: With respect to "reshaping long to wide" to tidy a dataset, the `names_from` parameter in the `pivot_wider` function is used to specify the column whose unique values will become the new column names in the wide format. In the dataframe `afegroup1_obs`, the `names_from` column should be `levstudy`.
+
+
+7. With respect to "reshaping long to wide" to tidy a dataset, define the `values_from` paramenter. What should the `values_from` column be in the dataframe `agegroup1_obs`?
+
+    - YOUR ANSWER HERE: The `value_from1 parameter is used to specify the column that contains the values to be spread into the new wide format. In the dataframe `agegroup1_obs`, the `value_from` column should be `efage09` which represents the age of grand total.
+
+
+8. Tidy the dataframe `agegroup1_obs` and create a new object `agegroup1_obs_tidy`, then print the first few observations using `head()`.
+
+```{r}
+#reshaping long to wide
+agegroup1_obs_tidy <- agegroup1_obs %>%
+  pivot_wider(
+    names_from = levstudy,
+    values_from = efage09
+  ) 
+
+#print the first few observations
+head(agegroup1_obs_tidy)
+```
+
+
+9. Confirm that the new object `agegroup1_obs_tidy` contains one observation for each value of `unitid`.
+
+```{r}
+agegroup1_obs_tidy %>%
+  group_by(unitid) %>%
+  summarise(n_per_unitid = n()) %>%
+  ungroup() %>%
+  count(n_per_unitid)
+```
+
+
+10. Create a new object `agegroup1_obs_tidy_v2` from the object `agegroup1_obs` by performing the following steps in one line of code with multiple pipes:
+
+    - Create a variable `level` that is a character version of the variable `levstudy` (hint: check the value labels)
+    - Drop the original variable `levstudy`
+    - Tidy the dataset
+
+```{r} 
+#check value labels
+val_labels(agegroup1_obs$levstudy)
+#create agegroup1_obs_tidy_v2
+agegroup_obs_tidy_2 <- agegroup1_obs %>%
+  mutate(level = case_when(
+    levstudy == 1 ~ "all_students_total",
+    levstudy == 2 ~"undergraduate",
+    levstudy == 5 ~"graduate"
+  )) %>%
+  select(-levstudy) %>%
+  pivot_wider(names_from =  level, values_from = efage09)
+
+```
+
+
+11. Print the first few observations of `agegroup1_obs_tidy_v2`. Why is this dataframe preferable over `agegroup1_obs_tidy`?  
+
+    - YOUR ANSWER HERE: `agegroup1_obs_tidy_v2 is preferable because it includes a new variable level that provides a clearer and more descriptive representation of the academic level associated with each observation, enhancing the readability and understanding of the dataset.
+
+
+```{r}
+head(agegroup_obs_tidy_2)
+```
+
+
+# Question 3: Questions about reshaping wide to long
+
+Here, we load a table from NCES Digest of Education Statistics that contains data about the total number of teachers in each state for particular years.
+
+```{r}
+load(url("https://github.com/anyone-can-cook/rclass1/raw/master/data/nces_digest/nces_digest_table_208_30.RData"))
+
+# Convert character variables for teacher totals to integers
+table208_30[2:6] <- data.frame(lapply(table208_30[2:6], as.integer))
+
+table208_30
+```
+
+
+1. Why is the dataframe `table208_30` not tidy?  
+
+    - YOUR ANSWER HERE: The dataframe `table208_30` is not tidy because the academic years (e.g., tot_fall_2000, tot_fall_2005) are spread across multiple columns. According to the tidy data principles, each variables should have its own column. In this case, the year should be gathered into a single column, and the corresponding values should be in another column. 
+    
+
+2. What changes need to be made to `table208_30` to make it tidy?
+
+    - YOUR ANSWER HERE: The dataset is currently in a wide format, it should be reshaped into a long format where each row represents a unique combination of state, year, and teacher number. First, gather the columns representing academic year into a single column. Then, create a new column to store the values corresponding to the total number of teachers for each state and academic year.
+    
+
+3. Tidy the dataframe `table208_30` and create a new object `table208_30_tidy`, then print the first few observations using `head()`.
+    - Hint: Specify the `cols = starts_with(...)` and `names_prefix = ...` options for `pivot_longer()`
+
+```{r}
+table208_30_tidy <- table208_30 %>%
+  pivot_longer(
+    cols = starts_with("tot_fall"),
+    names_to = 'year',
+    names_prefix = 'tot_fall_',
+    values_to = 'total_teachers'
+  )
+
+head(table208_30_tidy)
+
+```
+
+# Question 4: Bonus (up to 10% extra credit)
+
+Create a graph using data that you used in this problem set. Make sure to title and label the plot appropriately and customize it how you'd like. Add a color palette from `Rcolorbrewer` or curate your own color palette. Then, write some text describing your findings or observations.
+
+**Note:** The teaching team will not answer questions related to the bonus question. Instead, feel free to ask your classmates on GitHub (make sure to include the "bonus" label in your issue). 
+
+```{r}
+#display unique values for certain variables
+table208_30_tidy %>% distinct(year)
+#tabulate the value of levstudy
+table(table208_30_tidy$state)
+
+table208_30_tidy_2011 <- table208_30_tidy %>%
+  filter(year==2011) %>% # filter for 2011 year data
+  select(-year)
+
+# Replace "......" after state names with an empty string
+table208_30_tidy_2011$state <- gsub("\\.{4,}", "", table208_30_tidy_2011$state)
+
+#instill usmap 
+#install.packages("usmap")
+library(usmap)
+library(ggplot2)
+
+#reorder the rows
+table208_30_tidy_2011 <- table208_30_tidy_2011[order(table208_30_tidy_2011$state), ]
+head(table208_30_tidy_2011)
+
+#fips and abbreviated state-names
+table208_30_tidy_2011$fips <- statepop$fips
+table208_30_tidy_2011$abbr <- statepop$abbr
+head(table208_30_tidy_2011)
+
+#change the total_teachers unit in thousand
+table208_30_tidy_2011 <- table208_30_tidy_2011 %>%
+  mutate(total_teachers_tho = total_teachers / 1000)
+
+
+#plot the map
+plot_2011 <- plot_usmap(data = table208_30_tidy_2011,
+           values = "total_teachers_tho",
+           labels = TRUE,
+           exclude = "AK") +
+scale_fill_gradient(low = "white",
+                    high = "red",
+                    name = NULL) + 
+ggtitle("Statewise Teacher Number in Thousand (US, 2011)") +
+theme(
+    text = element_text(size = 5),
+    plot.title = element_text(size = 15, hjust = 0.5, face = 'bold')
+  )
+
+plot_2011
+
+
+
+```
+
+- Findings and Observations: The figure above represents the U.S. statewise teacher number in 2011 (in thousand). As we can see from the map, TX, CA, and NY are the three states with the highest number of teachers. And in the north-central part of the country, such as MT, ND, WY, and SD are the states with the lowest number of teachers.
+
+# Create a GitHub issue   
+
+- Go to the [class repository](https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues) and create a new issue.
+
+- Refer to [rclass1 student issues readme](https://github.com/anyone-can-cook/rclass1_student_issues_f23/blob/main/README.md) for instructions on how to post questions or reflections.
+
+- You are also required to respond to at least one issue posted by another student.
+
+- Paste the url to your issue here: https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/941
+- Paste the url to the issue you responded to here: https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/939
+
+# Knit to pdf and submit problem set  
+
+**Knit to pdf** by clicking the "Knit" button near the top of your RStudio window (icon with blue yarn ball) or drop down and select "Knit to PDF"
+
+- Go to the [class website](https://anyone-can-cook.github.io/rclass1/) and under the "Readings & Assignments" >> "Week 10" tab, click on the "Problem set 9 submission link"
+- Submit both .Rmd and pdf files
+- Use this naming convention "lastname_firstname_ps#" for your .Rmd and pdf files (e.g. jaquette_ozan_ps9.Rmd & jaquette_ozan_ps9.pdf) 
+

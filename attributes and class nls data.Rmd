@@ -1,0 +1,559 @@
+---
+title: "Problem Set #8"
+author: "Shuhan Ai"
+date: "11/25/2023"
+urlcolor: blue
+output: 
+  pdf_document: default
+---
+
+```{r, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", highlight = TRUE)
+```
+
+\textcolor{red}{\textbf{Grade: /24}} 
+
+# Overview  
+
+This problem set uses the National Longitudinal Study of 1972 (NLS72) dataset -- a nationally representative, longitudinal study of 12th graders in 1972. This dataset includes the Postsecondary Education Transcript File of the NLS72, which contains information on transcripts from NLS72 senior cohort members who reported attending a postsecondary institution after high school.  
+
+For this problem set, we will be creating the following GPA variables:
+
+1. An institution-level (i.e., transcript-level) GPA variable
+2. A term-level GPA variable
+
+
+__General Instructions__  
+
+- Don't make changes to "input" variables; instead, create a new variable
+- You are responsible for deciding what data investigations to conduct (e.g., conditional statements, frequency counts, etc.)
+
+    - Keep the data investigations you want the TAs to see; though you might want to comment out very long lists of observations
+    - Whenever you create a new variable, run checks to make sure the variable was created correctly (e.g., counts, cross-tabulations, assertions)
+    - As you work towards creating the GPA variable(s) you may make new "input" variables; drop these variables when you no longer need them
+    - We intentionally provided direct instructions/hints in some questions in this problem set. We also want to give you practice cleaning, investigating, and creating variables as if this were an independent project you are working on.
+    - Lastly, we encourage you to leave comments in the code chunks to help you organize your thoughts and help us read through and understand your code.
+
+
+# Part I: Data investigation and variable creation
+
+\textcolor{red}{\textbf{/1}}
+
+1. Load libraries and NLS72 data 
+
+- Load the `tidyverse` `haven`, and `labelled` packages
+- Load any other packages you want to use
+```{r, results="hide", message=FALSE, warning=FALSE}
+#install.packages("tidyverse") #uncomment if you haven't installed these packaged
+#install.packages("labelled")
+#install.packages("haven")
+rm(list = ls())
+library(tidyverse)
+library(haven)
+library(labelled)
+```
+
+Load the NLS72 data  
+
+    - Use `read_dta()` to read in the stata dataset using the url: `https://github.com/anyone-can-cook/rclass1/raw/master/data/nls72/nls72petscrs_v2.dta`
+     - Make sure to assign it to new object nls_crs
+
+```{r}
+nls_crs <- read_dta(url("https://github.com/anyone-can-cook/rclass1/raw/master/data/nls72/nls72petscrs_v2.dta"))
+```
+
+
+\textcolor{red}{\textbf{/2}}   
+
+2. Investigate (e.g.,`typeof()`, `class()`, and `str()` ) the following course-level variables in the `nls_crs` dataframe:
+
+    - `crsgrada`
+    - `crsgradb`
+    - `gradtype`
+    - `crsecred`
+
+```{r, results="hide"}
+#Create a function to investigate all the features listed above
+investigate_variables <- function(dataframe, variables) {
+  for (variable in variables) {
+    cat("Variable:", variable, "\n")
+    cat("Data type:", typeof(dataframe[[variable]]), "\n")
+    cat("Class:", class(dataframe[[variable]]), "\n")
+    str(dataframe[[variable]])
+    cat("\n\n")
+  }
+}
+
+investigate_variables(nls_crs, c("crsgrada", "crsgradb", "gradtype", "crsecred"))
+
+```
+
+\textcolor{red}{\textbf{/2}} 
+
+3. Create a new factor variable using the `crsgrada` variable, whose values represent letter course grades. 
+
+   Complete the following steps:
+
+    - First, use `count()` to get the frequency table for the values of `crsgrada`
+    - Next, create a new variable in the `nls_crs` dataframe called `crsgrada_fac` that is the factor version of the `crsgrada` variable (hint: make sure to assign back to `nls_crs` to retain the new variable)
+    - Use `typeof()`, `class()`, and `attributes()` to investigate the newly created `crsgrada_fac` variable
+
+```{r}
+#get frequency table
+nls_crs %>% count(crsgrada)
+
+#assign new variable
+nls_crs <- nls_crs %>% mutate(crsgrada_fac = factor(crsgrada))
+
+#investige the new variable use the previous function
+investigate_variables(nls_crs, "crsgrada_fac")
+
+```
+
+\textcolor{red}{\textbf{/1.5}}    
+
+4. Complete the following steps to create a numeric course grade version of the `crsgrada_fac` variable:  
+
+    - Create a new variable in the `nls_crs` dataframe called `numgrade` with the following numeric values based on the attribute levels from `crsgrada_fac` (hint: use `mutate()` and `recode()`, and make sure to retain the new `numgrade` variable)
+      - A+=4; A=4; A-=3.7; B+=3.3; B=3; B-=2.7; C+=2.3; C=2; C-=1.7; D+=1.3; D=1; D-=0.7; F=0; E=0; WF=0
+      - All other letter grades should have missing values for `numgrade` (hint: use `.default` argument)
+        - Use `NA_real_` rather than `NA` to indicate missing value because `NA_real_` is numeric (like `numgrade`) whereas `NA` is logical
+    - Use `count()` to get the frequency table for `numgrade`
+
+```{r}
+nls_crs <- nls_crs %>%
+  mutate(numgrade = recode(
+    crsgrada_fac,
+    `A+` = 4, `A` = 4, `A-` = 3.7,
+    `B+` = 3.3, `B` = 3, `B-` = 2.7,
+    `C+` = 2.3, `C` = 2, `C-` = 1.7,
+    `D+` = 1.3, `D` = 1, `D-` = 0.7,
+    `F` = 0, `E` = 0, `WF`=0,
+    .default = NA_real_
+  ))
+
+nls_crs %>% count(numgrade)
+
+```
+
+
+Run the code chunk below. `gradtype` is a `labelled` class variable that indicates the type of grade given for each course. Run the following code chunk to investigate this variable:
+
+- Retrieve the variable label for `gradtype`
+- Retrieve the value labels for `gradtype`
+- Use `count()` to get the frequency table for `gradtype` that shows the values and the value labels (hint: use `as_factor()`)
+- Filter `nls_crs` for only observations associated with `"{MISSING}"` and get the count of that
+
+__ANSWER PROVIDED FOR YOU__ *Remove the `eval=FALSE` before knitting to pdf*
+```{r}
+nls_crs %>% select(gradtype) %>% var_label()
+nls_crs %>% select(gradtype) %>% val_labels()
+
+nls_crs %>% count(gradtype) %>% as_factor()
+
+nls_crs %>% filter(gradtype==9) %>% count()
+```
+
+
+`crsgradb` is the variable for numerical course grades. There are several issues with this variable. First, missing observations for `crsgradb` are currently `999` and `999.999`. The variable also has values greater than 4 (problematic when the highest possible grade A+ = 4).
+
+- Create and retain a new `crsgradb_v2` variable that replaces all values greater than 4 in `crsgradb` to `NA`  (hint: you can use `mutate()` and base R's `ifelse()` functions to either replace the value to `NA` or keep the current value of the variable based on whether the expression you specify evaluates to `TRUE` or `FALSE`). 
+  
+__ANSWER PROVIDED FOR YOU__ *Remove the `eval=FALSE` before knitting to pdf*
+```{r results='hide'}
+# Create frequency table using either table() or count()
+table(nls_crs$crsgradb)
+nls_crs %>% count(crsgradb) 
+
+# Create new variable
+nls_crs<- nls_crs %>% 
+  mutate(crsgradb_v2= ifelse(crsgradb>4, NA, crsgradb))
+
+#Check variable
+nls_crs %>% count(crsgradb_v2)
+
+```
+
+*Note: we ask you to use `ifelse()`from base R and _not_ tidyverse's `if_else` because the latter does not allow you to mix two classes of variables to your output. In our case, `if_else` would evaluate `NA` as a logical class and the `crsgradb` as numeric and cause an error. You can [check lecture notes](https://anyone-can-cook.github.io/rclass1/lectures/data_quality/data_quality.pdf) about this topic on slide 21.*
+    
+\textcolor{red}{\textbf{/1}}   
+
+5. `crsecred` is the variable for how many total credits were possible for each course. Missing observations for `crsecred` are currently `999` and `999.999`.  Use the code above as a guide to create and retain a new `crsecred_v2` variable that replaces values of `999` and `999.999` to `NA`. 
+
+```{r}
+#check frequency table
+#table(nls_crs$crsecred)
+nls_crs %>% count(crsecred)
+
+# create and retain crsecred_v2 variable
+nls_crs <- nls_crs %>% 
+  mutate(crsecred_v2 = ifelse(crsecred %in% c(999, 999.999), NA, crsecred))
+
+#check frequency table for crsecred_v2
+nls_crs %>% count(crsecred_v2)
+```
+
+\textcolor{red}{\textbf{/2}}   
+
+6. Create a "final" numerical grade variable named `numgrade_v2` that incorporates values from observations where `gradtype==1` (i.e., "type of grade" is "letter") and incorporates values from observations where `gradtype==2` (i.e., "type of grade" is "numeric").  
+
+    - Recall that we previously created the variable `numgrade` which takes the letter value (e.g. A+, A, B) from the attribute levels of `crsgrada_fac` and assigns a numeric value (e.g. 4, 3.7). If you run the code below, you will see that when `gradtype==2` (numeric grade), we do not have a value for the variable `numgrade`. The goal is to create a variable `numgrade_v2` that will have a numerical value even when `gradetype==2`.
+
+```{r, eval=FALSE}
+nls_crs %>% select(gradtype, numgrade, crsgradb_v2) %>% filter(gradtype == 1) %>% head()
+
+nls_crs %>% select(gradtype, numgrade, crsgradb_v2) %>% filter(gradtype == 2) %>% head()
+```
+
+Now create the variable `numgrade_v2`. (hint: use `mutate()` and `case_when()`)
+
+- For observations where `gradtype==1` indicates letter grades were used and `crsecred_v2` is not missing, value of `numgrade_v2` should be the value of the variable `numgrade` which you created previously.
+- For observations where `gradtype==2` indicates that numeric grades were used and `crsecred_v2` is not missing, value of `numgrade_v2` should be the value of the variable `crsgradb_v2` which you created previously.
+- Check your new variable `numgrade_v2`. When `gradtype==2` you should have numeric values for `numgrade_v2`. 
+    
+```{r}
+# Create numgrade_v2 variable
+nls_crs <- nls_crs %>%
+  mutate(
+    numgrade_v2 = case_when(
+      gradtype == 1 & !is.na(crsecred_v2) ~ numgrade,
+      gradtype == 2 & !is.na(crsecred_v2) ~ crsgradb_v2,
+      TRUE ~ NA_real_
+    )
+  )
+
+# Check the new variable numgrade_v2
+nls_crs %>% 
+  filter(gradtype == 1) %>%
+  select(gradtype, numgrade, crsgradb_v2, numgrade_v2) %>% head()
+
+# Filter for gradtype == 2 and check numgrade_v2 values
+nls_crs %>%
+  filter(gradtype == 2) %>%
+  select(gradtype, numgrade, crsgradb_v2, numgrade_v2) %>% head()
+```
+
+
+\textcolor{red}{\textbf{/1}}   
+
+7. Use the `set_variable_labels()` function to set variable labels to the new variables: `numgrade`, `crsgradb_v2`, `crsecred_v2`, and `numgrade_v2`
+
+```{r}
+nls_crs <- nls_crs %>%
+  set_variable_labels(
+    numgrade = "Numeric Grade",
+    crsgradb_v2 = "Course Grade Numeric Cleaned",
+    crsecred_v2 = "Course Credits Possible Cleaned",
+    numgrade_v2 = "Numeric Grade Cleaned"
+  )
+```
+
+
+\textcolor{red}{\textbf{/1}}     
+
+8. Sort and Select
+    
+    - We want to conduct some preliminary data cleaning of our dataframe.  
+    
+        - Sort the dataframe by ascending `id`, `transnum`, `termnum`, `crsename` (IN THAT ORDER). Make sure to retain these changes by assigning it to a new object titled `nls_crs_v2`.
+        - Next, we want to subset our dataframe and select the following variables `id`, `transnum`, `termnum`, `crsecred`, `gradtype`, `crsgrada`, `crsgradb`, `crsecip`, `crsename`, `crsgrada_fac`, `numgrade`, `crsgradb_v2`, `crsecred_v2`, `numgrade_v2`.  
+        - Run some investigations of your new dataframe (e.g., `name()`, `glimpse()`, `str()`)
+
+```{r, results='hide'}
+#sort the dataframe
+nls_crs_v2 <- nls_crs %>%
+  arrange(id, transnum, termnum, crsename)
+
+#select specific variables
+nls_crs_v2 <- nls_crs_v2 %>% select(id, transnum, termnum, crsecred, gradtype, crsgrada, crsgradb, crsecip, crsename, crsgrada_fac, numgrade, crsgradb_v2, crsecred_v2, numgrade_v2)
+
+#run investigation
+print(names(nls_crs_v2))
+glimpse(nls_crs_v2)
+str(nls_crs_v2)
+```
+
+
+Run the code below to perform investigations of the following input variables and variables we created above  
+
+- For example, you can identify the variable type, view the variable labels, get a count of the observations, run some descriptive statistics (e.g. min, max, mean, etc.) of the following variables:  
+    - `transnum`, `termnum`, `crsecred_v2`, `gradtype`, `numgrade_v2`
+    
+__ANSWER PROVIDED FOR YOU__ *Remove the `eval=FALSE` before knitting to pdf*
+```{r, results='hide'}
+
+#Investigate variable transnum
+class(nls_crs_v2$transnum)
+nls_crs_v2%>% select(transnum) %>% var_label() # view variable labels
+nls_crs_v2%>% count(transnum)
+
+
+#Check that sum of transnum equals number of rows in dataset
+nls_crs_v2 %>%
+  group_by(transnum) %>% #grouping by transum
+  summarise(count_transum = n()) %>% #count for each value of transum
+  ungroup() %>% #ungroup
+  mutate(total_obs = sum(count_transum)) #Get the sum of count to check that it equals the number of observations in the dataset
+
+
+#Investigate variable termnum
+class(nls_crs_v2$termnum)
+nls_crs_v2%>% select(termnum) %>% var_label() # view variable labels
+nls_crs_v2%>% count(termnum)
+
+
+#Investigate course credits
+#glimpse(nls_crs_v2)
+class(nls_crs_v2$crsecred_v2)
+nls_crs_v2%>% select(crsecred_v2) %>% var_label() # view variable labels
+nls_crs_v2%>% count(crsecred_v2)
+nls_crs_v2 %>% #run some descriptive stats 
+  summarise_at(
+    .vars = vars(crsecred_v2),
+    .funs = funs(min, max, .args=list(na.rm=TRUE))
+)
+#investigate high values of crsecred
+nls_crs_v2%>% filter(crsecred_v2>=100) %>% count(crsecred_v2) # frequency table of crsecred
+nls_crs_v2%>% filter(crsecred_v2==999) # printing some observations for specific values of crsecred
+nls_crs_v2%>% filter(crsecred_v2>=999) %>% count(crsecred) # 
+
+
+#Investigate gradtype
+class(nls_crs_v2$gradtype) # labelled
+#glimpse(nls_crs_v2)
+nls_crs_v2%>% select(gradtype) %>% var_label() # view variable labels
+nls_crs_v2%>% select(gradtype) %>% val_labels() # view value labels on variable
+nls_crs_v2 %>% count(gradtype) #freq count of values
+nls_crs_v2 %>% count(gradtype) %>% as_factor() #freq count with value labels
+
+
+#Investigate numgrade_v2
+class(nls_crs_v2$numgrade_v2) #numeric
+nls_crs_v2%>% select(numgrade_v2) %>% var_label() # view variable labels
+nls_crs_v2%>% count(numgrade_v2)
+nls_crs_v2 %>% #run some descriptive stats 
+  summarise_at(
+    .vars = vars(numgrade_v2),
+    .funs = funs(min, max, .args=list(na.rm=TRUE))
+)
+
+```
+
+
+# Part III:  Write out plan  
+
+\textcolor{red}{\textbf{/3}}  
+
+__Write a plan for how you will create an institution-level (i.e., transcript-level GPA variable)__
+
+This plan should include your general conceptual definition for how to calculate GPA.  
+
+- The general definition of GPA is quality points (course credit multiplied by numerical grade value) divided by total credits.
+- The plan should describe how you will apply this general definition to actual variables in the NLS course-level data.
+- The plan should also describe how you plan to deal with idiosyncracies in the value of "input" variables (e.g., missing values, strange values) and your rationale for treating the variable values this way.
+- Note: you will almost certainly update this plan as you make progress.  
+
+
+__Your plan here:__  
+
+- Identify Relevant Variables: Choose relevant variables for GPA calcultion, such as `numgrade_v2` and `crsecred_v2`, and any other necessary variables, such as `id` and `transnum`.
+- Conduct Investigation for the input variables: `typeof()`, `class()`, and `str()`.
+- Clean and Transform Variables: Handle missing values in `numgrade_v2` and `crsecred_v2`. Replace missing values with appropriate defaults.
+- Calculate Quality Points: Multiply `numgrade_v2` by `crsecred_v2` to get quality points for each course. This represents the contribution of each course to the GPA.
+- Calculate Total Credits: Sum the total credits for each transcript. This will be denominator in the GPA formula.
+- Calculate GPA: Divide the total quality points by the total credits to get the overall GPA for each transcript. Consider rounding the GPA to reasonable number of decimal places.
+- Handling Idiosyncrasies: (1) Deal with extreme values: identify and investigate any unusually high or low GPA values. (2) Handle missing values: might exclude transcripts with missing grades or credits.
+				
+
+# Part IV: Clean data  
+
+__Some requirements__
+
+- Prior to creating any new variable, conduct investigations of the input variable(s)
+- After creating any new variable, conduct investigations of the value of the new variable and check the value of the new variable against values of the input variable(s)
+- The investigations we used in the beginning of this problem set may be helpful
+
+\textcolor{red}{\textbf{/2}}    
+
+1. Create a new course credit variable `crsecredv3`
+
+    - Recall from above, we created the variable `crsecred_v2`, which represents the total number of credits possible for each course. In the last problem set we replaced the values `999` and `999.999` with `NA`.
+        - Create a new course credit variable `crsecredv3` that is the same as `crsecred_v2`, but is also `NA` for observations where `numgrade_v2` is missing. (Remember to use base R's `ifelse()` if your new vector will have a mix of numeric and `NA` values: The tidyverse version `if_else()` does not allow this mixing.)
+        - Remember to conduct investigations before and after creating the variable
+    
+```{r}
+#conduct investigations of the input variable(s), typeof, class, str
+investigate_variables(nls_crs, c("numgrade_v2", "crsecred_v2", "transnum"))
+
+#check the current frequency table for numgrade_v2
+table(nls_crs$numgrade_v2)
+
+# create and retain crsecredv3 variable
+nls_crs <- nls_crs %>% 
+  mutate(crsecredv3 = ifelse(is.na(numgrade_v2), NA, crsecred_v2))
+
+# Check the new frequency table for crsecredv3
+table(nls_crs$crsecredv3)
+
+```
+
+\textcolor{red}{\textbf{/1}}    
+
+2. Create a quality points variable `qualpts`
+
+    - The variable `numgrade_v2` represents our new course grade variable that we created above set using the primary input variables `crsgrada`, `crsgradb`, `gradtype`.
+    - Before creating the `qualpts` variable, investigate the variables `numgrade_v2`, `crsecredv3` individually and against different values of `gradtype`.  
+        
+        - There is no right or wrong way to do this. Just make sure that your investigations make sense. For example, if `gradtype == 9`, count the values of `numgrade_v2`. What would you expect to get?
+    - Now create the variable `qualpts` that represents course credit multipled by numerical grade value.
+    - Make sure to check the variable you just created.
+
+```{r results='hide'}
+#Investigate variables `numgrade_v2`, `crsecredv3`
+nls_crs %>% 
+  group_by(gradtype) %>% 
+  summarise(
+    count_numgrade = sum(!is.na(numgrade_v2)),
+    unique_values_numgrade = n_distinct(numgrade_v2, na.rm = TRUE),
+    count_crsecredv3 = sum(!is.na(crsecredv3)),
+    unique_values_crsecredv3 = n_distinct(crsecredv3, na.rm = TRUE)
+  )
+
+#create and retain qualpts variable
+nls_crs <- nls_crs %>%
+  mutate(qualpts = crsecredv3 * numgrade_v2)
+
+#check the new variable
+investigate_variables(nls_crs, "qualpts")
+summary(nls_crs$qualpts)
+
+```
+
+
+# Part V: Create institution-level & term-level GPA variables  
+
+\textcolor{red}{\textbf{/2}}   
+
+1. Create institution-level GPA variable and save as a new object
+
+    - Calculate institutional-level quality points and total credit variables by grouping by `id` and `transnum` and summing across observations.
+    - Finally, divide the institutional-level quality points by insitutional total credits to generate the institutional-level GPA.
+
+
+```{r results='hide'}
+#calculate institutional-level quality points and total credits
+institutional_gpa <- nls_crs %>%
+  group_by(id, transnum) %>%
+  summarise(
+    total_qualpts = sum(qualpts, na.rm = TRUE),
+    total_credits = sum(crsecredv3, na.rm = TRUE)
+  ) %>%
+  #calculate institutional-level GPA
+  mutate(institutional_gpa = total_qualpts / total_credits)
+
+# Check the new object institutional_gpa
+glimpse(institutional_gpa)
+head(institutional_gpa)
+```
+
+\textcolor{red}{\textbf{/0.5}}   
+
+2. After you create the institutional-level GPA variable, conduct some basic investigations/descriptive statistics to check whether it looks reasonable  
+
+```{r results='hide'}
+#summary check
+summary(institutional_gpa$institutional_gpa)
+
+# Mean and standard deviation
+mean(institutional_gpa$institutional_gpa, na.rm = TRUE)
+sd(institutional_gpa$institutional_gpa, na.rm = TRUE)
+```
+
+
+\textcolor{red}{\textbf{/1.5}}  
+
+3. Create term-level GPA variable and save as a new object  
+
+    - Same logic as above, but now you have to consider the term instead of just the institution-level GPA. 
+```{r results='hide'}
+#grouped by id and termnum, calculate sum of quality points and total credits
+term_gpa <- nls_crs %>%
+  group_by(id, termnum) %>%
+  summarise(
+    term_quality_points = sum(qualpts, na.rm = TRUE),
+    term_total_credits = sum(crsecredv3, na.rm = TRUE)
+  ) %>%
+  #calculate term-level gpa
+  mutate(term_gpa = term_quality_points / term_total_credits)
+
+# Check the new object institutional_gpa
+glimpse(term_gpa)
+head(term_gpa)
+```
+
+\textcolor{red}{\textbf{/0.5}}    
+
+4. After you create the term-level GPA variable, conduct some basic investigations/descriptive statistics to check whether it looks reasonable  
+
+```{r results='hide'}
+#summary check
+summary(term_gpa$term_gpa)
+
+# Mean and standard deviation
+mean(term_gpa$term_gpa, na.rm = TRUE)
+sd(term_gpa$term_gpa, na.rm = TRUE)
+
+```
+
+# Bonus (up to 10% extra credit)
+
+Create a graph using data that you used in this problem set. Make sure to title and label the plot appropriately and customize it how you'd like. Add a color palette from `Rcolorbrewer` or curate your own color palette. Then, write some text describing your findings or observations.
+
+**Note:** The teaching team will not answer questions related to the bonus question. Instead, feel free to ask your classmates on GitHub (make sure to include the "bonus" label in your issue). 
+
+```{r}
+# Load required library
+library(ggplot2)
+
+# Create a factor variable 'grade_level' based on GPA tiers
+institutional_gpa$grade_level <- cut(
+  institutional_gpa$institutional_gpa,
+  breaks = c(-Inf, 1.7, 2.7, 3.3, 4),
+  labels = c("tier4", "tier3", "tier2", "tier1"),
+  include.lowest = TRUE
+)
+
+ggplot(institutional_gpa, aes(x = grade_level, y = institutional_gpa, fill = grade_level)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "PuBu") +
+  ggtitle("Box Plot of Institutional GPA by Grade Level") +
+  xlab("Grade Level") +
+  ylab("Institutional GPA") +
+  theme_minimal()
+
+```
+
+**Findings and Observations:** First I created a grade level variable that represent different levels of institutional gpa. As we can see from box plot, tier1 has the highest median GPA, which is above 3.5, tier4 has the lowest GPA, approximately around 1.3. Tier3 and tier1 have similar IQR (Interquartile Range), suggesting similar variability in GPA scores within these groups. Overall, this box plot provides a clear visualization of the distribution of Institutional GPA across different GPA tiers, indicating that as GPA increases, the overall distribution becomes less variable and more tightly grouped around a higher median value.
+
+# Create a GitHub issue 
+
+\textcolor{red}{\textbf{/2}}
+
+- Go to the [class repository](https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues) and create a new issue.
+
+- Refer to [rclass1 student issues readme](https://github.com/anyone-can-cook/rclass1_student_issues_f23/blob/main/README.md) for instructions on how to post questions or reflections.
+
+- You are also required to respond to at least one issue posted by another student.
+
+
+- Paste the url to your issue here: https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/851
+- Paste the url to the issue you responded to here: https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/850
+
+
+# Knit to pdf and submit problem set  
+
+**Knit to pdf** by clicking the "Knit" button near the top of your RStudio window (icon with blue yarn ball) or drop down and select "Knit to PDF"
+
+- Go to the [class website](https://anyone-can-cook.github.io/rclass1/) and under the "Readings & Assignments" >> "Week 8" tab, click on the "Problem set 8 submission link"
+- Submit both .Rmd and pdf files
+- Use this naming convention "lastname_firstname_ps#" for your .Rmd and pdf files (e.g. jaquette_ozan_ps8.Rmd & jaquette_ozan_ps8.pdf) 

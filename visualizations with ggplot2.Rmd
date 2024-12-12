@@ -1,0 +1,354 @@
+---
+title: 'Problem Set #7'
+author: "Shuhan(Alice) Ai"
+date: "11/12/2023"
+urlcolor: blue
+output: 
+  pdf_document: default
+---
+
+```{r setup, include = F}
+#knitr::opts_chunk$set(echo = F, warning = F, message = F)
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+```
+
+\textcolor{red}{\textbf{Grade: /33}}   
+
+
+# Overview
+
+In this problem set, you will practice creating visualizations using the `ggplot2` library, including labeling axes, customizing colors, and making these plots presentation-ready. The data you will be working with is a California housing data set based on the 1990 Census, where each observation is a California district. 
+
+
+# Part I: Explore data and create simple graphs
+
+
+1. Load the following packages in the code chunk below: `tidyverse`, `ggplot2`, `scales`, and `RColorBrewer`. Note that `ggplot2` is part of tidyverse, and you do not need to load it separately, but we will do so for this problem set.  
+
+```{r, message=F}
+rm(list = ls())
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(RColorBrewer)
+```
+
+
+\textcolor{red}{\textbf{/3}}
+
+2. Use `load()` and `url()` to load the `housing_df` dataframe from `https://github.com/anyone-can-cook/rclass1/raw/master/data/housing/housing.RData`.
+
+This dataset was downloaded from Kaggle and contains data on California housing prices. Each observation in the dataset is a California district. Take some time to read about the data and the variables it contains. [Kaggle California Housing Prices](https://www.kaggle.com/camnugent/california-housing-prices). 
+  
+```{r}
+load(url("https://github.com/anyone-can-cook/rclass1/raw/master/data/housing/housing.RData"))
+```
+  
+  
+3. Let's investigate the `housing_df` dataframe. First, use `head()` and `glimpse()` to preview the data.  
+
+    - How many observations (rows) and variables (columns) are there?  
+    - __ANSWER__: There are 20640 observations and 10 variables.
+    
+```{r}
+head(housing_df)
+glimpse(housing_df)
+```
+
+\textcolor{red}{\textbf{/2}}
+
+4. Use `ggplot` to create a simple scatterplot showing `median_income` on the x-axis and `median_house_value` on the y-axis.
+
+```{r}
+housing_df %>%
+  ggplot(mapping = aes (x = median_income, y = median_house_value)) +
+  geom_point()
+```
+
+    
+\textcolor{red}{\textbf{/1}}
+
+5. In the plot, you should notice there is a line of points spread out along `y = 500000`. (You may also notice the number on the axis being displayed as `5e+05` instead of `500000` -- do not worry about this for now.) If you inspect `housing_df`, you'll see there are many points with `median_house_value` of `500001`, which suggests that observations containing `median_house_value` above `500000` may not be reliable. 
+
+    - Filter the dataframe to only contain observations with `median_house_value` of `500000` or less, and resassign this back to the `housing_df` dataframe. If you try running your code from Question 4 again, you should see that the line of points is gone.
+    
+```{r}
+housing_df <- housing_df %>%
+  filter(median_house_value <= 500000)
+
+housing_df %>%
+  ggplot(mapping = aes(x = median_income, y = median_house_value)) +
+  geom_point()
+```
+
+
+\textcolor{red}{\textbf{/2}}
+
+6. Next, take some time to investigate the `ocean_proximity` variable in the dataframe (e.g., variable type, class, descriptive stats like count). You may comment out these lines of code after you're done.
+
+    Then, copy your code from Question 4 and update it to have the points from the scatterplot be colored by `ocean_proximity`.
+    
+```{r}
+#typeof(housing_df$ocean_proximity)
+#housing_df %>% count(ocean_proximity)
+housing_df %>%
+  ggplot(mapping = aes (x = median_income, y = median_house_value, color = ocean_proximity)) +
+  geom_point()
+
+```
+
+
+\textcolor{red}{\textbf{/2}}
+
+7. In the legend, you should notice that the categorical values for `ocean_proximity` are ordered alphabetically by default. This might not be the most logical ordering, as it would make more sense to arrange them by location.
+
+    Convert the `ocean_proximity` column into a factor with the levels in this order: 'ISLAND', 'NEAR BAY', 'NEAR OCEAN', '<1H OCEAN', 'INLAND'. (_Hint_: Use the [`factor()`](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/factor) function to specify the levels and make sure to reassign it back to the original dataframe to retain the changes). Refer to section [`1.2 Type/class of variables ggplot expect`](https://anyone-can-cook.github.io/rclass1/lectures/ggplot/ggplot.html#12_Typeclass_of_variables_ggplot_expects) from the lecture for an example on changing a variable to a factor with levels.
+    
+    If you try running your code from Question 6 again, you should see the legend values in the updated order. 
+    
+```{r}
+housing_df$ocean_proximity <- factor(
+  housing_df$ocean_proximity,
+  levels = c('ISLAND',
+             'NEAR BAY',
+             'NEAR OCEAN',
+             '<1H OCEAN',
+             'INLAND')
+)
+
+housing_df %>%
+  ggplot(mapping = aes (x = median_income, y = median_house_value, color = ocean_proximity)) +
+  geom_point()
+```
+
+# Part II: Colors in ggplot2
+
+Hue, Chroma, and Luminance are important color concepts, and are helpful specifically when working with colors in `ggplot2`. 
+
+\textcolor{red}{\textbf{/2}}
+
+1. In your own words, define Hue, Chroma, and Luminance and use these concepts to describe the `RColorBrewer` "Oranges" palette.  
+
+    - __ANSWER__: 
+    -- Hue refers to the dominate color family, representing the core color such as red, yellow, orange. \
+    -- Chroma refers to color saturation or intensity, reveals the purity of a color. Higher chroma indicates intense color, while lower chroma suggests a more subdued or neutral color.\
+    -- Luminance refers to the brightness of a color, reflecting the lightness or darkness of a color.\
+    --  The palette provides a range of orange tones with variations in saturation and brightness. The "Oranges" palette in RColorBrewer have a dominant hue of orange.The chroma vary across different shades of orange, reflecting differences in intensity or saturation. The luminance display diversity, with some shades being brighter and others darker within orange color family.
+
+```{r, eval=FALSE}
+display.brewer.pal(9,"Oranges")
+```
+    
+\textcolor{red}{\textbf{/3}}
+
+2. There are three color palette scales to choose from in the `RColorBrewer` library: sequential, qualitative, and diverging, best suited for representing different types of data (e.g., categorical, ordered). Run the code below to graph the relationship between ocean proximity and population by California district. 
+
+    Comment out the code below and add a color palette from `RColorBrewer` that is best suited for the data. Also, remove the `eval=FALSE` from the code chunk.
+    - Explain why you chose this palette and why other palettes might not work as well. 
+
+
+```{r}
+#min(housing_df$population)
+#max(housing_df$population)
+#mean(housing_df$population)
+
+housing_df %>% 
+  ggplot(aes(x = ocean_proximity, y = population, width = 0.8)) +
+  geom_col() 
+
+housing_df %>% 
+  ggplot(aes(x = ocean_proximity, y = population, width = 0.8, fill=ocean_proximity)) +
+  geom_col() +
+  scale_fill_brewer(palette = 'PuBu', name = 'Ocean proximity') 
+
+#Explanation:I chose the "PuBu" palette because it is well-suited for sequential data like 
+#ocean proximity, the darker the color, the closer to the sea. Other palettes might not 
+#work well because they are designed for different types of data. A qualitative palette 
+#might be useful for ordered data, while a diverging palette is better suited for data 
+#with a meaningful midpoint.
+```
+
+
+
+# Part III: Creating and customizing graphs
+
+\textcolor{red}{\textbf{/4}}
+
+1. Building from Question 7 in Part I, add the following to customize your plot:
+    
+    - Use `ggtitle()` to give the plot a title
+    - Use `xlab()` and `ylab()` to label the axes
+    - Use `scale_color_brewer()` to set the [color palette](http://applied-r.com/rcolorbrewer-palettes/) and legend title
+    - Use `scale_x_continuous()` and `scale_y_continuous()`, along with the `label_number()` function from the `scales` library, to customize the scale display so they display the dollars in hundreds of thousands (e.g., `$100K`, `$200K`, etc.)
+        - _Hint_: According to the variable descriptions [here](https://www.kaggle.com/camnugent/california-housing-prices), the median income is reported in tens of thousands -- make sure to display this accordingly
+    - Use `theme_minimal()` or a custom theme to add further customizations to your plot
+    
+```{r}
+housing_df$ocean_proximity <- factor(
+  housing_df$ocean_proximity,
+  levels = c('ISLAND',
+             'NEAR BAY',
+             'NEAR OCEAN',
+             '<1H OCEAN',
+             'INLAND')
+)
+
+housing_df$median_income <- housing_df$median_income * 10000
+
+housing_df %>%
+  ggplot(mapping = aes (x = median_income, y = median_house_value, color = ocean_proximity)) +
+  geom_point() +
+  ggtitle("Scatterplot of Median House Vaule vs. Median Income by Ocean Proximity") +
+  xlab("Median Income") +
+  ylab("Median House Value for Household within a Block") +
+  scale_color_brewer(palette = 'PuBu', name = 'Ocean Proximity' ) +
+  scale_x_continuous(labels = label_number(prefix = '$', suffix = 'K', scale = 1e-3, accuracy = 1)) +
+  scale_y_continuous(labels = label_number(prefix = '$', suffix = 'K', scale = 1e-3, accuracy = 1)) +
+  theme_minimal()
+```
+
+    
+\textcolor{red}{\textbf{/3}}
+
+2. Create a second graph, the same scatterplot as the previous question showing `median_income` on the x-axis and `median_house_value` on the y-axis, but with separate subplots (i.e., small multiple) for each value of `ocean_proximity`. Make sure to remove the `color` aesthetic from the previous scatterplot.
+
+```{r}
+housing_df$ocean_proximity <- factor(
+  housing_df$ocean_proximity,
+  levels = c('ISLAND',
+             'NEAR BAY',
+             'NEAR OCEAN',
+             '<1H OCEAN',
+             'INLAND')
+)
+
+housing_df %>%
+  ggplot(mapping = aes(x = median_income, y = median_house_value)) +
+  geom_point() +
+  facet_wrap(~ocean_proximity, scales = "free") +
+  ggtitle("Scatterplot of Median House Vaule vs. Median Income by Ocean Proximity") +
+  xlab("Median Income") +
+  ylab("Median House Value") +
+  scale_x_continuous(labels = label_number(prefix = '$', suffix = 'K', scale = 1e-3, accuracy = 1)) +
+  scale_y_continuous(labels = label_number(prefix = '$', suffix = 'K', scale = 1e-3, accuracy = 1)) +
+  theme_minimal()
+
+```
+
+\textcolor{red}{\textbf{/3}}
+
+3. Create a third graph, a scatterplot showing `longitude` on the x-axis and `latitude` on the y-axis, with the points colored by `ocean_proximity`. Make sure to include the following:
+
+    - Plot title
+    - Appropriate axis labels
+    - Legend with an approriate title and your choice of color palette
+    - Use `coord_fixed()` to fix the coordinate scaling
+    - Any other theme or style customizations
+
+```{r}
+housing_df %>%
+  ggplot(mapping = aes(x = longitude, y = latitude, color = ocean_proximity)) +
+  geom_point() +
+  ggtitle("Scatterplot of Longitude vs. Latitude Colored by Ocean Proximity") +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  scale_color_brewer(palette = "PuBu", name = 'Ocean Proximity') +
+  coord_fixed() +
+  theme_minimal()
+```
+
+\textcolor{red}{\textbf{/3}}
+
+4. Create a fourth graph, a scatterplot showing `longitude` on the x-axis and `latitude` on the y-axis, with the points colored by `median_house_value`. Make sure to include the following:
+
+    - Plot title
+    - Appropriate axis labels
+    - Legend with an approriate title, value labels, and your choice of color palette
+        - _Hint_: Use `scale_color_gradient()` along with the `label_number()` to customize the gradient scale display
+    - Use `coord_fixed()` to fix the coordinate scaling
+    - Any other theme or style customizations
+
+
+```{r}
+housing_df %>%
+  ggplot(mapping = aes(x = longitude, y = latitude, color = median_house_value)) +
+  geom_point() +
+  ggtitle("Scatterplot of Longitude vs. Latitude Colored by Midian House Value") +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  scale_color_gradient(name = "Median House Value",
+                       labels = label_number(prefix = '$', suffix = 'K', scale = 1e-3, accuracy = 1),
+                       low = "#2774AE", high = "#FFD100") +  #Let's go Bruins!
+  coord_fixed()+
+  theme_minimal()
+```
+
+\textcolor{red}{\textbf{/3}}
+
+5. Create a barplot showing the average house value by `ocean_proximity`, with each category of `ocean_proximity` along the x-axis and the house value on the y-axis. 
+
+    First group `housing_df` by `ocean_proximity` and calculate the average house value per group, then create the graph with the following features:
+
+    - Plot title
+    - Appropriate axis labels
+    - Appropriate scale display on axis (e.g., `$100K`, `$200K`, etc.)
+    - Any other theme or style customizations (e.g., bar width)
+
+```{r}
+#Group by ocean_proximity and calculate average house value
+avg_house_value <- housing_df %>%
+  group_by(ocean_proximity) %>%
+  summarise(avg_house_value = mean(median_house_value))
+
+#Create the barplot
+ggplot(avg_house_value, aes(x = ocean_proximity, y = avg_house_value)) +
+  geom_bar(stat = "identity", width = 0.7, fill = "#FFD100") +
+  ggtitle("Average House Value by Ocean Proximity") +
+  xlab("Ocean Proximity") +
+  ylab("Average House Value") +
+  scale_y_continuous(labels = label_number(prefix = '$', suffix = 'K', scale = 1e-3, accuracy = 1)) +
+  theme_minimal()
+
+```
+
+
+
+# Part IV: Bonus (up to 10% extra credit)
+
+1. Create a graph using any variables you'd like from the housing dataset. However, as you've done in the previous questions, this cannot be a scatterplot or barplot you have already done. Make sure to title and label the plot appropriately and customize it how you'd like. Add a color palette from `Rcolorbrewer` or curate your own color palette. Then, write some text describing your findings or observations.
+
+```{r}
+#Box Plot of median_house_value and ocean_proximity
+ggplot(housing_df, aes(x = ocean_proximity, y = median_house_value, fill = ocean_proximity)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "PuBu") +
+  ggtitle("Box Plot of Median House Value by Ocean Proximity") +
+  xlab("Ocean Proximity") +
+  ylab("Median House Value") +
+  scale_y_continuous(labels = label_number(prefix = '$', suffix = 'K', scale = 1e-3, accuracy = 1)) +
+  theme_minimal()
+  
+```
+
+# Create a GitHub issue   
+
+\textcolor{red}{\textbf{/2}}
+
+- Go to the [class repository](https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues) and create a new issue.
+
+- Refer to [rclass1 student issues readme](https://github.com/anyone-can-cook/rclass1_student_issues_f23/blob/main/README.md) for instructions on how to post questions or reflections.
+
+- You are also required to respond to at least one issue posted by another student.
+
+
+- Paste the url to your issue here: https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/755
+- Paste the url to the issue you responded to here: https://github.com/anyone-can-cook/rclass1_student_issues_f23/issues/752
+
+
+# Knit to pdf and submit problem set  
+
+**Knit to pdf** by clicking the "Knit" button near the top of your RStudio window (icon with blue yarn ball) or drop-down and select "Knit to PDF."
+
+- Go to the [class website](https://anyone-can-cook.github.io/rclass1/) and under the "Readings & Assignments" >> "Week 7" tab, click on the "Problem set 7 submission link"  
+- Submit both .Rmd and pdf files  
+- Use this naming convention "lastname_firstname_ps#" for your .Rmd and pdf files (e.g. jaquette_ozan_ps7.Rmd & jaquette_ozan_ps7.pdf) 
